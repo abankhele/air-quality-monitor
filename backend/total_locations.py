@@ -2,7 +2,7 @@ import os
 import requests
 import time
 
-API_KEY = '4ae4b2bd8d43ae5b61db36856ec3ad2a7b51a1a7376ee22dc99f7fb21e21a12a'
+API_KEY = ''
 url = 'https://api.openaq.org/v3/locations'
 headers = {'X-API-Key': API_KEY}
 
