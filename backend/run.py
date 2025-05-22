@@ -7,7 +7,7 @@ import re
 from tqdm import tqdm
 from math import ceil
 
-API_KEY = os.getenv('OPENAQ_API_KEY', '4ae4b2bd8d43ae5b61db36856ec3ad2a7b51a1a7376ee22dc99f7fb21e21a12a')
+API_KEY = os.getenv('OPENAQ_API_KEY', '')
 BASE_URL = 'https://api.openaq.org/v3'
 US_COUNTRY_ID = 155  # Verified correct US country ID
 OUTPUT_FILE = 'usa_locations.json'
