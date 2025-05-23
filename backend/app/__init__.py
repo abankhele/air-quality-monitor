@@ -1,9 +1,7 @@
 from flask import Flask
-from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from config import Config
-
-db = SQLAlchemy()
+from app.database import db
 
 def create_app(config_class=Config):
     app = Flask(__name__)
@@ -13,14 +11,11 @@ def create_app(config_class=Config):
     db.init_app(app)
     CORS(app)
     
-    # Import and register blueprint
+    # Import models to register them
+    from app import models
+    
+    # Register API blueprint
     from app.api import api_bp
     app.register_blueprint(api_bp)
-    
-    # Import models and API routes AFTER everything is set up
-    with app.app_context():
-        from app import models
-        from app.api import register_routes
-        register_routes()
     
     return app

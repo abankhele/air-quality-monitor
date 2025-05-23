@@ -1,16 +1,16 @@
 from flask import jsonify, request
 from sqlalchemy import func
-from app.models import db, Location, Sensor, Parameter, Measurement
+from app.database import db
+from app.models import Location, Sensor, Parameter, Measurement
 from app.api import api_bp
 from app.api.utils import parse_bounds
-
 
 @api_bp.route('/locations', methods=['GET'])
 def get_locations():
     """Get all locations with optional filtering"""
     # Parse query parameters
     bounds = parse_bounds(request)
-    limit = request.args.get('limit', 1000, type=int)
+    limit = request.args.get('limit', None, type=int)
     offset = request.args.get('offset', 0, type=int)
     
     # Build query
@@ -34,24 +34,25 @@ def get_locations():
     # Format response
     result = []
     for loc in locations:
-        # Get latest measurements for AQI calculation
-        sensors = Sensor.query.filter_by(location_id=loc.id).all()
+        # Get sensors for this location with valid parameter_id
+        sensors = Sensor.query.filter_by(location_id=loc.id).filter(Sensor.parameter_id.is_not(None)).all()
         sensor_data = []
         
         for sensor in sensors:
             parameter = Parameter.query.get(sensor.parameter_id)
-            sensor_data.append({
-                'id': sensor.id,
-                'openaq_id': sensor.openaq_id,
-                'parameter': {
-                    'id': parameter.id,
-                    'name': parameter.name,
-                    'display_name': parameter.display_name,
-                    'unit': parameter.unit
-                },
-                'last_value': float(sensor.last_value) if sensor.last_value else None,
-                'last_updated': sensor.last_updated.isoformat() if sensor.last_updated else None
-            })
+            if parameter:  # Only include sensors with valid parameters
+                sensor_data.append({
+                    'id': sensor.id,
+                    'openaq_id': sensor.openaq_id,
+                    'parameter': {
+                        'id': parameter.id,
+                        'name': parameter.name,
+                        'display_name': parameter.display_name,
+                        'unit': parameter.unit
+                    },
+                    'last_value': float(sensor.last_value) if sensor.last_value else None,
+                    'last_updated': sensor.last_updated.isoformat() if sensor.last_updated else None
+                })
         
         # Calculate simple AQI (just for demonstration)
         pm25_sensor = next((s for s in sensor_data if s['parameter']['name'] == 'pm25'), None)
@@ -85,24 +86,25 @@ def get_location(location_id):
     """Get details for a specific location"""
     location = Location.query.get_or_404(location_id)
     
-    # Get sensors for this location
-    sensors = Sensor.query.filter_by(location_id=location.id).all()
+    # Get sensors for this location with valid parameter_id
+    sensors = Sensor.query.filter_by(location_id=location.id).filter(Sensor.parameter_id.is_not(None)).all()
     sensor_data = []
     
     for sensor in sensors:
         parameter = Parameter.query.get(sensor.parameter_id)
-        sensor_data.append({
-            'id': sensor.id,
-            'openaq_id': sensor.openaq_id,
-            'parameter': {
-                'id': parameter.id,
-                'name': parameter.name,
-                'display_name': parameter.display_name,
-                'unit': parameter.unit
-            },
-            'last_value': float(sensor.last_value) if sensor.last_value else None,
-            'last_updated': sensor.last_updated.isoformat() if sensor.last_updated else None
-        })
+        if parameter:  # Only include sensors with valid parameters
+            sensor_data.append({
+                'id': sensor.id,
+                'openaq_id': sensor.openaq_id,
+                'parameter': {
+                    'id': parameter.id,
+                    'name': parameter.name,
+                    'display_name': parameter.display_name,
+                    'unit': parameter.unit
+                },
+                'last_value': float(sensor.last_value) if sensor.last_value else None,
+                'last_updated': sensor.last_updated.isoformat() if sensor.last_updated else None
+            })
     
     # Calculate simple AQI
     pm25_sensor = next((s for s in sensor_data if s['parameter']['name'] == 'pm25'), None)
@@ -128,7 +130,7 @@ def get_location(location_id):
 def search_locations():
     """Search locations by name or locality"""
     query_term = request.args.get('q', '')
-    limit = request.args.get('limit', 10, type=int)
+    limit = request.args.get('limit', None, type=int)
     
     if not query_term:
         return jsonify({'results': []})
@@ -154,6 +156,36 @@ def search_locations():
     
     return jsonify({'results': result})
 
+@api_bp.route('/test', methods=['GET'])
+def test_endpoint():
+    """Simple test endpoint"""
+    return jsonify({'message': 'API is working!'})
+
+@api_bp.route('/test-db', methods=['GET'])
+def test_db():
+    """Test database connection"""
+    try:
+        # Test basic database connection
+        location_count = Location.query.count()
+        sensor_count = Sensor.query.count()
+        parameter_count = Parameter.query.count()
+        measurement_count = Measurement.query.count()
+        
+        return jsonify({
+            'status': 'Database connected successfully',
+            'counts': {
+                'locations': location_count,
+                'sensors': sensor_count,
+                'parameters': parameter_count,
+                'measurements': measurement_count
+            }
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'Database connection failed',
+            'error': str(e)
+        }), 500
+
 def calculate_aqi_from_pm25(pm25):
     """Simple function to calculate AQI from PM2.5 value"""
     if pm25 is None:
@@ -176,8 +208,3 @@ def calculate_aqi_from_pm25(pm25):
             return round(aqi)
     
     return None
-@api_bp.route('/test', methods=['GET'])
-def test_endpoint():
-    """Simple test endpoint"""
-    return jsonify({'message': 'API is working!'})
-

@@ -1,6 +1,6 @@
 from flask_sqlalchemy import SQLAlchemy
 
-db = SQLAlchemy()
+from app.database import db
 
 class Location(db.Model):
     __tablename__ = 'locations'
