@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
 
 const api = axios.create({
     baseURL: API_URL,
@@ -27,6 +27,13 @@ export const fetchLocationDetail = async (id) => {
     return response.data;
 };
 
+export const searchLocations = async (query) => {
+    const response = await api.get('/locations/search', {
+        params: { q: query }
+    });
+    return response.data;
+};
+
 // Parameters
 export const fetchParameters = async () => {
     const response = await api.get('/parameters');
@@ -34,10 +41,19 @@ export const fetchParameters = async () => {
 };
 
 // Measurements
-export const fetchMeasurements = async (sensorId, days = 1) => {
-    const response = await api.get('/measurements', {
-        params: { sensor_id: sensorId, days }
-    });
+export const fetchMeasurements = async (params) => {
+    const response = await api.get('/measurements', { params });
+    return response.data;
+};
+
+export const fetchLatestMeasurements = async () => {
+    const response = await api.get('/measurements/latest');
+    return response.data;
+};
+
+// Stats
+export const fetchStats = async () => {
+    const response = await api.get('/stats/overview');
     return response.data;
 };
 
