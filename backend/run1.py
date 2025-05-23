@@ -1,7 +1,13 @@
-from app import create_app
+# run.py (fixed)
+import os
+import time
+import requests
+import json
+import re
+from tqdm import tqdm
+from math import ceil
 
-<<<<<<< HEAD
-API_KEY = os.getenv('OPENAQ_API_KEY', '')
+API_KEY = os.getenv('OPENAQ_API_KEY', '4ae4b2bd8d43ae5b61db36856ec3ad2a7b51a1a7376ee22dc99f7fb21e21a12a')
 BASE_URL = 'https://api.openaq.org/v3'
 US_COUNTRY_ID = 155  # Verified correct US country ID
 OUTPUT_FILE = 'usa_locations.json'
@@ -79,9 +85,6 @@ def fetch_us_locations():
             
         print(f"\nFound {len(all_locations)} US locations")
         print(f"Data saved to {OUTPUT_FILE}")
-=======
-app = create_app()
->>>>>>> 33613eb (created backend apis)
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    fetch_us_locations()
