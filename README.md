@@ -1,91 +1,112 @@
-# AirQuality Monitor
+Here's a concise README.md for your air quality monitoring project:
 
-A comprehensive air quality monitoring dashboard that visualizes real-time and historical air quality data across the United States.
+```markdown
+# 🌬️ Air Quality Monitor
 
-## Features
+A real-time air quality monitoring dashboard visualizing data from 4,877+ US monitoring stations. Track historical trends, compare locations, and monitor current air quality conditions.
 
-- **Interactive Map**: Visualize air quality data across 4,800+ monitoring stations in the US
-- **Real-time Updates**: Latest air quality measurements from OpenAQ API
-- **Historical Data**: Track air quality trends over time
-- **Pollutant Analysis**: Monitor multiple parameters (PM2.5, PM10, O3, NO2, SO2, CO)
-- **Location Details**: Detailed information for each monitoring station
+![Python](https://img.shields.io/badge/Python-3.9+-blue)
+![React](https://img.shields.io/badge/React-18+-61dafb)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-13+-336791)
 
-## Tech Stack
+## ✨ Features
 
-### Backend
-- Python/Flask
-- SQLAlchemy ORM
-- PostgreSQL
-- Celery/Redis for task scheduling
+- **4,877+ US Monitoring Stations** with real-time data
+- **Historical Trends** from 2016 to present (where available)
+- **Interactive Map** with location details
+- **Compare up to 5 locations** side-by-side
+- **Automated data updates** every 2 hours
+- **Multiple pollutants**: PM2.5, PM10, O₃, NO₂, SO₂, CO
 
-### Frontend
-- React.js
-- Leaflet for mapping
-- Chart.js for data visualization
-- Tailwind CSS for styling
-
-## Installation
+## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.9+
-- Node.js 16+
-- PostgreSQL
-- Redis
+- Python 3.9+, Node.js 16+, PostgreSQL, Redis
+- OpenAQ API Key (free at [openaq.org](https://openaq.org))
 
 ### Backend Setup
-```bash
-# Clone the repository
-git clone https://github.com/yourusername/air-quality-monitor.git
-cd air-quality-monitor/backend
-
-# Create and activate virtual environment
+```
+cd backend
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
+source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 
-# Set up environment variables
+# Configure .env file
 cp .env.example .env
-# Edit .env with your API keys and database settings
+# Add: DATABASE_URL, REDIS_URL, OPENAQ_API_KEY
 
-# Initialize database
-flask db upgrade
-
-# Seed initial data
-python -m app.seed_locations
-
-# Run the development server
-flask run
+flask run --port 5001
 ```
 
 ### Frontend Setup
-```bash
-# Navigate to frontend directory
-cd ../frontend
-
-# Install dependencies
+```
+cd frontend/air-quality-frontend
 npm install
-
-# Start development server
+echo "REACT_APP_API_URL=http://localhost:5001/api" > .env
 npm start
 ```
 
-## API Endpoints
+### Background Services
+```
+# Terminal 1: Redis
+redis-server
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/locations` | GET | Get all monitoring stations |
-| `/api/locations/:id` | GET | Get details for a specific station |
-| `/api/parameters` | GET | Get all available parameters |
-| `/api/measurements` | GET | Get measurements with filtering options |
+# Terminal 2: Celery Worker
+celery -A celery_app worker --loglevel=info
 
-## Data Source
+# Terminal 3: Celery Beat (scheduler)
+celery -A celery_app beat --loglevel=info
+```
 
-This project uses data from the [OpenAQ](https://openaq.org/) platform, which aggregates air quality data from government agencies and other sources worldwide.
+## 📊 Initial Data Load
+```
+# Load all US locations
+python manage.py update-locs
+
+# Fetch latest measurements
+python manage.py fetch-data
+
+# Check status
+python manage.py status
+```
+
+## 🔗 Access Points
+- **Frontend**: http://localhost:3000
+- **API**: http://localhost:5001/api
+- **Task Monitor**: http://localhost:5555
+
+## 🛠️ Tech Stack
+
+**Backend**: Flask, SQLAlchemy, Celery, Redis, PostgreSQL  
+**Frontend**: React, Leaflet, Chart.js, Tailwind CSS  
+**Data Source**: OpenAQ API
+
+## 📈 Key APIs
+```
+GET /api/locations              # All locations
+GET /api/locations/{id}         # Location details
+GET /api/measurements           # Historical data
+GET /api/parameters             # Available pollutants
+```
+
+## 🎯 Usage
+
+1. **Dashboard** - Overview with interactive map
+2. **Location Details** - Click any location for trends
+3. **Trends** - Compare multiple locations
+4. **Predefined Comparisons** - Houston Metro, Cross-Country, etc.
+
+## 🔧 Management Commands
+```
+python manage.py fetch-data     # Update all location data
+python manage.py status         # Show data statistics
+python manage.py data-range     # Check data availability
+```
+
+## 📊 Data Coverage
+- **23,000+ measurements** across all locations
+- **Complete US coverage** with EPA monitoring network
+- **Historical data** spanning multiple years
+- **Real-time updates** every 2 hours
 
 
-## Acknowledgments
-
-- OpenAQ for providing the air quality data API
-- All contributors to the open-source libraries used in this project
