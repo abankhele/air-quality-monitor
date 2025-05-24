@@ -35,20 +35,20 @@ A real-time air quality monitoring dashboard visualizing data from 4,877+ US mon
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   React Frontend │    │   Flask Backend │    │   PostgreSQL    │
+│   React Frontend│    │   Flask Backend │    │   PostgreSQL    │
 │                 │◄───┤                 │◄───┤                 │
-│ -  Interactive UI │    │ -  REST APIs     │    │ -  23K+ Records  │
-│ -  Charts & Maps │    │ -  Data Models   │    │ -  Optimized     │
-│ -  Trend Analysis│    │ -  Caching       │    │ -  Indexed       │
+│ -Interactive UI │    │ -  REST APIs    │    │ -  23K+ Records │
+│ - Charts & Maps │    │ -  Data Models  │    │ -  Optimized    │
+│ - Trend Analysis│    │ -  Caching      │    │ -  Indexed      │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
                                 │
                                 ▼
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │      Redis      │    │     Celery      │    │   OpenAQ API    │
 │                 │◄───┤                 │───►│                 │
-│ -  Task Queue    │    │ -  Data Fetching │    │ -  4,877 Stations│
-│ -  API Caching   │    │ -  Scheduling    │    │ -  Real-time Data│
-│ -  Session Store │    │ -  Rate Limiting │    │ -  Historical    │
+│ -  Task Queue   │    │ -  Data Fetching│    │ - 4,877 Stations│
+│ -  API Caching  │    │ -  Scheduling   │    │ - Real-time Data│
+│ -  Session Store│    │ -  Rate Limiting│    │ - Historical    │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 
