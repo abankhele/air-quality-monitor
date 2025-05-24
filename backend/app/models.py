@@ -13,6 +13,9 @@ class Location(db.Model):
     longitude = db.Column(db.Numeric(9,6))
     is_mobile = db.Column(db.Boolean, default=False)
     last_updated = db.Column(db.DateTime, default=db.func.now())
+    
+    # Add relationship for eager loading
+    sensors = db.relationship('Sensor', backref='location', lazy='select')
 
 class Parameter(db.Model):
     __tablename__ = 'parameters'
@@ -29,6 +32,10 @@ class Sensor(db.Model):
     parameter_id = db.Column(db.Integer, db.ForeignKey('parameters.id'), nullable=False)
     last_value = db.Column(db.Numeric(8,3))
     last_updated = db.Column(db.DateTime)
+    
+    # Add relationships for eager loading
+    parameter = db.relationship('Parameter', backref='sensors', lazy='select')
+    measurements = db.relationship('Measurement', backref='sensor', lazy='select')
 
 class Measurement(db.Model):
     __tablename__ = 'measurements'
@@ -36,3 +43,4 @@ class Measurement(db.Model):
     sensor_id = db.Column(db.Integer, db.ForeignKey('sensors.id'), nullable=False)
     value = db.Column(db.Numeric(8,3), nullable=False)
     timestamp = db.Column(db.DateTime, nullable=False)
+

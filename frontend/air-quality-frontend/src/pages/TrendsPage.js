@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import Layout from '../components/layout/Layout';
 import PollutantChart from '../components/charts/PollutantChart';
-import { fetchParameters, fetchMeasurements, fetchLocations } from '../api';
+import {
+    fetchParameters,
+    getComparisonData,  // Use this instead of fetchRecentMeasurements
+    fetchLocations
+} from '../api';
 
 const TrendsPage = () => {
     const [parameters, setParameters] = useState([]);
@@ -39,22 +43,13 @@ const TrendsPage = () => {
     useEffect(() => {
         if (selectedParameter && selectedLocations.length > 0) {
             const fetchMeasurementsData = async () => {
-                const measurementsData = {};
-
-                for (const location of selectedLocations) {
-                    try {
-                        const data = await fetchMeasurements({
-                            location_id: location.id,
-                            parameter_id: selectedParameter.id,
-                            limit: 30
-                        });
-                        measurementsData[location.id] = data.results || [];
-                    } catch (error) {
-                        measurementsData[location.id] = [];
-                    }
+                try {
+                    // Use the comparison helper function
+                    const comparisonData = await getComparisonData(selectedLocations, selectedParameter.id);
+                    setMeasurements(comparisonData);
+                } catch (error) {
+                    console.error('Error fetching comparison data:', error);
                 }
-
-                setMeasurements(measurementsData);
             };
 
             fetchMeasurementsData();
@@ -85,7 +80,10 @@ const TrendsPage = () => {
     return (
         <Layout>
             <div className="space-y-6">
-                <h1 className="text-2xl font-bold text-gray-900">Air Quality Trends</h1>
+                <h1 className="text-2xl font-bold text-gray-900">
+                    Air Quality Trends
+                    <span className="text-sm text-gray-500 ml-2">(Fresh data from May 21, 2025+)</span>
+                </h1>
 
                 {/* Controls */}
                 <div className="bg-white rounded-lg shadow p-6">
@@ -148,7 +146,7 @@ const TrendsPage = () => {
                                         <PollutantChart
                                             measurements={locationMeasurements}
                                             parameter={selectedParameter}
-                                            title={`${location.name} - ${selectedParameter.display_name}`}
+                                            title={`${location.name} - ${selectedParameter.display_name} (${locationMeasurements.length} points)`}
                                         />
                                     </div>
                                 );

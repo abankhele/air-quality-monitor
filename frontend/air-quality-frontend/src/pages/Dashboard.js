@@ -3,7 +3,12 @@ import Layout from '../components/layout/Layout';
 import AirQualityMap from '../components/map/AirQualityMap';
 import PollutantChart from '../components/charts/PollutantChart';
 import AQIGauge from '../components/charts/AQIGauge';
-import { fetchLocations, fetchParameters, fetchMeasurements, fetchStats } from '../api';
+import {
+    fetchLocations,
+    fetchParameters,
+    getLocationAllParameters,  // Use this instead of fetchRecentMeasurements
+    fetchStats
+} from '../api';
 
 const Dashboard = () => {
     const [locations, setLocations] = useState([]);
@@ -45,23 +50,8 @@ const Dashboard = () => {
         if (selectedLocation && parameters.length > 0) {
             const fetchLocationMeasurements = async () => {
                 try {
-                    const measurementsData = {};
-
-                    // Fetch measurements for each parameter
-                    for (const parameter of parameters) {
-                        try {
-                            const data = await fetchMeasurements({
-                                location_id: selectedLocation.id,
-                                parameter_id: parameter.id,
-                                limit: 30
-                            });
-                            measurementsData[parameter.id] = data.results || [];
-                        } catch (error) {
-                            console.error(`Error fetching measurements for parameter ${parameter.id}:`, error);
-                            measurementsData[parameter.id] = [];
-                        }
-                    }
-
+                    // Use the new helper function to get all parameter data
+                    const measurementsData = await getLocationAllParameters(selectedLocation.id, parameters);
                     setMeasurements(measurementsData);
                 } catch (error) {
                     console.error('Error fetching measurements:', error);
@@ -105,7 +95,7 @@ const Dashboard = () => {
                             <p className="text-3xl font-bold text-purple-600">{stats.measurement_count || 0}</p>
                         </div>
                         <div className="bg-white p-6 rounded-lg shadow">
-                            <h3 className="text-lg font-medium text-gray-900">Recent Data</h3>
+                            <h3 className="text-lg font-medium text-gray-900">Fresh Data (May 21+)</h3>
                             <p className="text-3xl font-bold text-orange-600">{stats.recent_measurement_count || 0}</p>
                         </div>
                     </div>
@@ -163,7 +153,10 @@ const Dashboard = () => {
                 {/* Charts */}
                 {selectedLocation && (
                     <div className="bg-white rounded-lg shadow p-4">
-                        <h2 className="text-xl font-semibold mb-4">Pollutant Trends for {selectedLocation.name}</h2>
+                        <h2 className="text-xl font-semibold mb-4">
+                            Pollutant Trends for {selectedLocation.name}
+                            <span className="text-sm text-gray-500 ml-2">(Fresh data from May 21, 2025+)</span>
+                        </h2>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             {parameters.map(parameter => {
@@ -173,7 +166,7 @@ const Dashboard = () => {
                                         <PollutantChart
                                             measurements={paramMeasurements}
                                             parameter={parameter}
-                                            title={`${parameter.display_name} Trend`}
+                                            title={`${parameter.display_name} Trend (${paramMeasurements.length} data points)`}
                                         />
                                     </div>
                                 );
