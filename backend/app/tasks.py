@@ -107,36 +107,49 @@ def process_sensor(location, sensor_data):
         return Sensor.query.filter_by(openaq_id=sensor_data['id']).first()
 
 def update_sensor_with_measurement(sensor, measurement):
-    """Update sensor with latest measurement data"""
+    """Update sensor with latest measurement data AND create measurement record"""
     if sensor is None:
         return
         
     try:
         # Get datetime from measurement
         if 'date' in measurement:
-            # Format from /measurements endpoint
             timestamp = datetime.fromisoformat(measurement['date']['utc'].replace('Z', '+00:00'))
         elif 'datetime' in measurement:
-            # Format from /latest endpoint
             timestamp = datetime.fromisoformat(measurement['datetime']['utc'].replace('Z', '+00:00'))
         else:
             logger.warning(f"Unknown timestamp format in measurement: {measurement}")
             return
-            
-        # Check if measurement already exists
-        if not Measurement.query.filter_by(sensor_id=sensor.id, timestamp=timestamp).first():
-            db.session.add(Measurement(
-                sensor_id=sensor.id,
-                value=measurement['value'],
-                timestamp=timestamp
-            ))
-            db.session.commit()
-            logger.info(f"Added new measurement for sensor {sensor.openaq_id}")
         
-        # Update sensor's last value
-        sensor.last_value = measurement['value']
-        sensor.last_updated = timestamp
+        # ONLY PROCESS IF TIMESTAMP IS AFTER MAY 21, 2025
+        cutoff_date = datetime(2025, 5, 21, tzinfo=timezone.utc)
+        if timestamp < cutoff_date:
+            logger.debug(f"Skipping old measurement from {timestamp} (before {cutoff_date})")
+            return
+        
+        # Check if measurement already exists
+        existing_measurement = Measurement.query.filter_by(
+            sensor_id=sensor.id,
+            timestamp=timestamp
+        ).first()
+        
+        if not existing_measurement:
+            new_measurement = Measurement(
+                sensor_id=sensor.id,
+                value=float(measurement['value']),
+                timestamp=timestamp
+            )
+            db.session.add(new_measurement)
+            logger.info(f"✅ Created fresh measurement for sensor {sensor.openaq_id}: {measurement['value']} at {timestamp}")
+        
+        # Update sensor's last value ONLY if this is newer
+        if not sensor.last_updated or timestamp > sensor.last_updated:
+            sensor.last_value = float(measurement['value'])
+            sensor.last_updated = timestamp
+            logger.info(f"✅ Updated sensor {sensor.openaq_id} last_value to {measurement['value']} at {timestamp}")
+        
         db.session.commit()
+        
     except Exception as e:
         db.session.rollback()
         logger.error(f"Error updating sensor with measurement: {e}")
@@ -157,7 +170,9 @@ def fetch_historical_measurements(location_id, parameter_name):
     """Fetch historical measurements for a location/parameter pair"""
     url = "https://api.openaq.org/v3/measurements"
     headers = {'X-API-Key': os.getenv('OPENAQ_API_KEY')}
-    date_from = (datetime.now(timezone.utc) - timedelta(days=10)).strftime('%Y-%m-%dT%H:%M:%SZ')
+    
+    # ONLY FETCH DATA FROM MAY 21, 2025 ONWARDS
+    date_from = datetime(2025, 5, 21, tzinfo=timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
     
     params = {
         'location_id': location_id,
@@ -345,18 +360,18 @@ def fetch_all_locations(self, fetch_history_pages=None):
 
 @celery.task(bind=True)
 def fetch_all_measurements_orchestrator(self):
-    """Process ALL locations with sensors by scheduling multiple batch tasks"""
+    """Process ALL 4,877 locations by scheduling multiple batch tasks"""
     with app.app_context():
         try:
-            # Get total count of locations with sensors
-            total_locations = db.session.query(Location).join(Sensor).distinct().count()
+            # Get total count of ALL locations (not just those with sensors)
+            total_locations = Location.query.count()
             batch_size = 100
             total_batches = (total_locations + batch_size - 1) // batch_size
             
-            logger.info(f"Total locations with sensors: {total_locations}")
+            logger.info(f"Total locations: {total_locations}")
             logger.info(f"Scheduling {total_batches} batches of {batch_size} to process ALL locations")
             
-            # Schedule batch tasks with offsets
+            # Schedule batch tasks with offsets to cover ALL locations
             for i in range(total_batches):
                 offset = i * batch_size
                 fetch_measurements_with_offset.delay(offset=offset, batch_size=batch_size)
@@ -375,13 +390,13 @@ def fetch_all_measurements_orchestrator(self):
 
 @celery.task(bind=True, autoretry_for=(Exception,), retry_kwargs={'max_retries': 2, 'countdown': 300})
 def fetch_measurements_with_offset(self, offset=0, batch_size=100):
-    """Fetch measurements for a batch of locations with offset"""
+    """Fetch measurements for a batch of ALL locations with offset"""
     with app.app_context():
         try:
             logger.info(f"Processing batch: offset={offset}, batch_size={batch_size}")
             
-            # Get locations with offset
-            locations = db.session.query(Location).join(Sensor).distinct().offset(offset).limit(batch_size).all()
+            # Get ALL locations with offset (not just those with sensors)
+            locations = db.session.query(Location).offset(offset).limit(batch_size).all()
             
             if not locations:
                 logger.info(f"No more locations at offset {offset}")
@@ -391,11 +406,19 @@ def fetch_measurements_with_offset(self, offset=0, batch_size=100):
             
             processed_count = 0
             new_measurements = 0
+            locations_with_data = 0
             
             for location in locations:
                 try:
                     # Fetch latest measurements for this location
                     latest_measurements = fetch_latest_measurements(location.openaq_id)
+                    
+                    if not latest_measurements:
+                        logger.debug(f"No latest measurements for location {location.id} ({location.name})")
+                        processed_count += 1
+                        continue
+                    
+                    locations_with_data += 1
                     
                     # Get sensor mapping for this location
                     sensors = Sensor.query.filter_by(location_id=location.id).all()
@@ -407,14 +430,17 @@ def fetch_measurements_with_offset(self, offset=0, batch_size=100):
                         if sensor_id in sensor_map:
                             update_sensor_with_measurement(sensor_map[sensor_id], measurement)
                             new_measurements += 1
+                        else:
+                            logger.debug(f"Sensor {sensor_id} not found in location {location.id}")
                     
                     processed_count += 1
                     
                     if processed_count % 10 == 0:
-                        logger.info(f"Batch {offset}: Processed {processed_count}/{len(locations)} locations")
+                        logger.info(f"Batch {offset}: Processed {processed_count}/{len(locations)} locations, {locations_with_data} had data")
                     
                 except Exception as e:
                     logger.error(f"Error processing location {location.id}: {e}")
+                    processed_count += 1
                     continue
             
             result = {
@@ -422,6 +448,7 @@ def fetch_measurements_with_offset(self, offset=0, batch_size=100):
                 'offset': offset,
                 'batch_size': batch_size,
                 'locations_processed': processed_count,
+                'locations_with_data': locations_with_data,
                 'new_measurements': new_measurements,
                 'timestamp': datetime.utcnow().isoformat()
             }
@@ -431,68 +458,6 @@ def fetch_measurements_with_offset(self, offset=0, batch_size=100):
             
         except Exception as e:
             logger.error(f"Error in batch at offset {offset}: {str(e)}")
-            raise
-
-@celery.task(bind=True, autoretry_for=(Exception,), retry_kwargs={'max_retries': 2, 'countdown': 300})
-def fetch_latest_measurements_batch(self, batch_size=100):
-    """Fetch latest measurements for existing locations in batches - PROCESSES ALL LOCATIONS"""
-    with app.app_context():
-        try:
-            logger.info(f"Starting latest measurements fetch (batch size: {batch_size})")
-            
-            if batch_size is None:
-                # Get ALL locations with sensors
-                locations = db.session.query(Location).join(Sensor).distinct().all()
-                logger.info(f"Processing ALL {len(locations)} locations with sensors")
-            else:
-                # Get limited batch
-                locations = db.session.query(Location).join(Sensor).distinct().limit(batch_size).all()
-                logger.info(f"Processing {len(locations)} locations for latest measurements")
-            
-            if not locations:
-                logger.info("No locations with sensors found")
-                return {'status': 'no_locations', 'processed': 0}
-            
-            processed_count = 0
-            new_measurements = 0
-            
-            for location in locations:
-                try:
-                    # Fetch latest measurements for this location
-                    latest_measurements = fetch_latest_measurements(location.openaq_id)
-                    
-                    # Get sensor mapping for this location
-                    sensors = Sensor.query.filter_by(location_id=location.id).all()
-                    sensor_map = {sensor.openaq_id: sensor for sensor in sensors}
-                    
-                    # Process measurements
-                    for measurement in latest_measurements:
-                        sensor_id = measurement.get('sensorsId')
-                        if sensor_id in sensor_map:
-                            update_sensor_with_measurement(sensor_map[sensor_id], measurement)
-                            new_measurements += 1
-                    
-                    processed_count += 1
-                    
-                    if processed_count % 10 == 0:
-                        logger.info(f"Processed {processed_count}/{len(locations)} locations")
-                    
-                except Exception as e:
-                    logger.error(f"Error processing location {location.id}: {e}")
-                    continue
-            
-            result = {
-                'status': 'success',
-                'locations_processed': processed_count,
-                'new_measurements': new_measurements,
-                'timestamp': datetime.utcnow().isoformat()
-            }
-            
-            logger.info(f"Latest measurements batch completed: {result}")
-            return result
-            
-        except Exception as e:
-            logger.error(f"Critical error in latest measurements batch: {str(e)}")
             raise
 
 @celery.task(bind=True)
@@ -523,22 +488,53 @@ def cleanup_old_measurements(self):
             db.session.rollback()
             raise
 
+@celery.task(bind=True)
+def cleanup_old_sensor_data(self):
+    """Clean up sensors with old last_updated dates (before May 21, 2025)"""
+    with app.app_context():
+        try:
+            logger.info("Starting cleanup of old sensor data...")
+            
+            cutoff_date = datetime(2025, 5, 21, tzinfo=timezone.utc)
+            
+            # Reset sensors with old data
+            old_sensors = Sensor.query.filter(
+                Sensor.last_updated < cutoff_date
+            ).all()
+            
+            reset_count = 0
+            for sensor in old_sensors:
+                sensor.last_value = None
+                sensor.last_updated = None
+                reset_count += 1
+            
+            db.session.commit()
+            logger.info(f"Reset {reset_count} sensors with data older than {cutoff_date}")
+            
+            return {
+                'status': 'success',
+                'reset_count': reset_count,
+                'cutoff_date': cutoff_date.isoformat(),
+                'timestamp': datetime.utcnow().isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in cleanup_old_sensor_data: {str(e)}")
+            db.session.rollback()
+            raise
+
 # Configure periodic tasks
 from celery.schedules import crontab
 
 celery.conf.beat_schedule = {
     'fetch-latest-measurements-every-2-hours': {
-        'task': 'app.tasks.fetch_all_measurements_orchestrator',  # Use orchestrator to get ALL locations
+        'task': 'app.tasks.fetch_all_measurements_orchestrator',  # Processes ALL 4,877 locations
         'schedule': crontab(minute=0, hour='*/2'),  # Every 2 hours
     },
     'update-all-locations-weekly': {
         'task': 'app.tasks.fetch_all_locations',  # Gets all 4,877 locations
         'schedule': crontab(hour=2, minute=0, day_of_week=0),  # Weekly on Sunday at 2 AM
-    },
-    'cleanup-old-data-monthly': {
-        'task': 'app.tasks.cleanup_old_measurements',
-        'schedule': crontab(hour=3, minute=0, day_of_month=1),  # Monthly on 1st at 3 AM
-    },
+    }
 }
 
 celery.conf.timezone = 'UTC'
