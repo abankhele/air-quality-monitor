@@ -40,65 +40,60 @@ export const fetchParameters = async () => {
     return response.data;
 };
 
-// Measurements - OPTIMIZED FOR YOUR FRESH DATA (NO DATE PARAMS)
+// Measurements - REMOVE ALL DATE FILTERING - SHOW ALL HISTORICAL DATA
 export const fetchMeasurements = async (params) => {
-    // Backend is hardcoded to May 21, 2025+ so no need for date filtering
-    // Remove any date-related parameters that might interfere
-    const { days, start_date, end_date, ...cleanParams } = params || {};
+    // Remove any date-related parameters - backend now shows all historical data
+    const { days, start_date, end_date, date_from, date_to, ...cleanParams } = params || {};
 
     const response = await api.get('/measurements', { params: cleanParams });
     return response.data;
 };
 
-// Get measurements for charts (your fresh data)
-export const fetchChartMeasurements = async (locationId, parameterId, limit = 100) => {
+// Get chart data for specific location and parameter - ALL HISTORICAL DATA
+export const fetchChartMeasurements = async (locationId, parameterId, limit = 200) => {
     const response = await api.get('/measurements', {
         params: {
             location_id: locationId,
             parameter_id: parameterId,
             limit: limit
+            // NO DATE FILTERING - get all available historical data
         }
     });
     return response.data;
 };
 
-// Get measurements for a specific sensor (your fresh data)
-export const fetchSensorMeasurements = async (sensorId, limit = 100) => {
+// Get measurements for a specific sensor - ALL HISTORICAL DATA
+export const fetchSensorMeasurements = async (sensorId, limit = 200) => {
     const response = await api.get('/measurements', {
         params: {
             sensor_id: sensorId,
             limit: limit
+            // NO DATE FILTERING - get all available historical data
         }
     });
     return response.data;
 };
 
-// Get measurements for a location (all parameters)
-export const fetchLocationMeasurements = async (locationId, limit = 200) => {
+// Get measurements for a location - ALL HISTORICAL DATA
+export const fetchLocationMeasurements = async (locationId, limit = 500) => {
     const response = await api.get('/measurements', {
         params: {
             location_id: locationId,
             limit: limit
+            // NO DATE FILTERING - get all available historical data
         }
     });
     return response.data;
 };
 
-// Get measurements for a parameter (all locations)
-export const fetchParameterMeasurements = async (parameterId, limit = 200) => {
+// Get measurements for a parameter across locations - ALL HISTORICAL DATA
+export const fetchParameterMeasurements = async (parameterId, limit = 500) => {
     const response = await api.get('/measurements', {
         params: {
             parameter_id: parameterId,
             limit: limit
+            // NO DATE FILTERING - get all available historical data
         }
-    });
-    return response.data;
-};
-
-// Get all measurements (no filters) - BE CAREFUL WITH THIS
-export const fetchAllMeasurements = async (limit = 1000) => {
-    const response = await api.get('/measurements', {
-        params: { limit: limit }
     });
     return response.data;
 };
@@ -106,6 +101,14 @@ export const fetchAllMeasurements = async (limit = 1000) => {
 // Get latest measurements for all sensors
 export const fetchLatestMeasurements = async () => {
     const response = await api.get('/measurements/latest');
+    return response.data;
+};
+
+// NEW: Get data range for a location
+export const fetchDataRange = async (locationId) => {
+    const response = await api.get('/measurements/data-range', {
+        params: locationId ? { location_id: locationId } : {}
+    });
     return response.data;
 };
 
@@ -123,10 +126,10 @@ export const fetchDebugInfo = async () => {
 
 // Helper functions for common use cases
 
-// Get chart data for dashboard
+// Get chart data for dashboard - ALL HISTORICAL DATA
 export const getDashboardChartData = async (locationId, parameterId) => {
     try {
-        const data = await fetchChartMeasurements(locationId, parameterId, 50);
+        const data = await fetchChartMeasurements(locationId, parameterId, 200);
         return data.results || [];
     } catch (error) {
         console.error(`Error fetching chart data for location ${locationId}, parameter ${parameterId}:`, error);
@@ -134,68 +137,55 @@ export const getDashboardChartData = async (locationId, parameterId) => {
     }
 };
 
-// Get all parameters data for a location (for multiple charts)
-// Get all parameters data for a location (ONLY for parameters this location has)
-export const getLocationAllParameters = async (locationId, allParameters) => {
+// Get all parameters data for a location - ALL HISTORICAL DATA
+export const getLocationAllParameters = async (locationId, parameters) => {
     const measurementsData = {};
 
-    console.log(`🔍 Fetching data for location ${locationId}`);
-
-    // First, get the location details to see what sensors it actually has
+    // First, get the data range for this location to show users what's available
     try {
-        const locationDetail = await fetchLocationDetail(locationId);
-        const locationSensors = locationDetail.sensors || [];
-
-        console.log(`📍 Location ${locationDetail.name} has ${locationSensors.length} sensors`);
-
-        // Only fetch data for parameters this location actually has sensors for
-        const availableParameterIds = locationSensors.map(sensor => sensor.parameter.id);
-        const parametersToFetch = allParameters.filter(param =>
-            availableParameterIds.includes(param.id)
-        );
-
-        console.log(`🎯 Will fetch data for ${parametersToFetch.length} parameters that this location has`);
-
-        for (const parameter of parametersToFetch) {
-            try {
-                const data = await fetchChartMeasurements(locationId, parameter.id, 100);
-                measurementsData[parameter.id] = data.results || [];
-
-                if (data.results && data.results.length > 0) {
-                    console.log(`✅ Parameter ${parameter.name}: ${data.results.length} measurements`);
-                } else {
-                    console.log(`❌ Parameter ${parameter.name}: 0 measurements (but sensor exists)`);
-                }
-            } catch (error) {
-                console.error(`Error fetching data for parameter ${parameter.id}:`, error);
-                measurementsData[parameter.id] = [];
-            }
-        }
-
-        // For parameters this location doesn't have, set empty array
-        for (const parameter of allParameters) {
-            if (!measurementsData[parameter.id]) {
-                measurementsData[parameter.id] = [];
-            }
-        }
-
+        const dataRange = await fetchDataRange(locationId);
+        console.log(`📊 Location ${locationId} data range:`, dataRange);
     } catch (error) {
-        console.error('Error fetching location details:', error);
+        console.log(`Could not get data range for location ${locationId}`);
+    }
+
+    for (const parameter of parameters) {
+        try {
+            const data = await fetchChartMeasurements(locationId, parameter.id, 200);
+            measurementsData[parameter.id] = data.results || [];
+
+            if (data.results && data.results.length > 0) {
+                const oldest = data.results[data.results.length - 1]?.timestamp;
+                const newest = data.results[0]?.timestamp;
+                console.log(`Parameter ${parameter.name}: ${data.results.length} measurements (${oldest} to ${newest})`);
+            } else {
+                console.log(`Parameter ${parameter.name}: 0 measurements`);
+            }
+        } catch (error) {
+            console.error(`Error fetching data for parameter ${parameter.id}:`, error);
+            measurementsData[parameter.id] = [];
+        }
     }
 
     return measurementsData;
 };
 
-
-// Get comparison data for trends page
+// Get comparison data for trends page - ALL HISTORICAL DATA
 export const getComparisonData = async (locations, parameterId) => {
     const comparisonData = {};
 
     for (const location of locations) {
         try {
-            const data = await fetchChartMeasurements(location.id, parameterId, 100);
+            const data = await fetchChartMeasurements(location.id, parameterId, 200);
             comparisonData[location.id] = data.results || [];
-            console.log(`Location ${location.name}: ${data.results?.length || 0} measurements`);
+
+            if (data.results && data.results.length > 0) {
+                const oldest = data.results[data.results.length - 1]?.timestamp;
+                const newest = data.results[0]?.timestamp;
+                console.log(`Location ${location.name}: ${data.results.length} measurements (${oldest} to ${newest})`);
+            } else {
+                console.log(`Location ${location.name}: 0 measurements`);
+            }
         } catch (error) {
             console.error(`Error fetching data for location ${location.id}:`, error);
             comparisonData[location.id] = [];
@@ -209,41 +199,18 @@ export const getComparisonData = async (locations, parameterId) => {
 export const checkDataAvailability = async () => {
     try {
         const debug = await fetchDebugInfo();
-        console.log('Data availability:', {
+        console.log('Overall data availability:', {
             totalMeasurements: debug.total_measurements,
-            freshMeasurements: debug.fresh_measurements_since_may_21,
-            validSensors: debug.valid_sensors,
-            startDate: debug.start_date_filter
+            oldestData: debug.oldest_data,
+            newestData: debug.newest_data,
+            dataSpanYears: debug.data_span_years,
+            validSensors: debug.valid_sensors
         });
         return debug;
     } catch (error) {
         console.error('Error checking data availability:', error);
         return null;
     }
-};
-
-// Error handling wrapper
-const withErrorHandling = (apiCall) => {
-    return async (...args) => {
-        try {
-            return await apiCall(...args);
-        } catch (error) {
-            console.error('API Error:', error.response?.data || error.message);
-            throw error;
-        }
-    };
-};
-
-// Export wrapped functions with error handling
-export const safeApi = {
-    fetchLocations: withErrorHandling(fetchLocations),
-    fetchLocationDetail: withErrorHandling(fetchLocationDetail),
-    fetchParameters: withErrorHandling(fetchParameters),
-    fetchMeasurements: withErrorHandling(fetchMeasurements),
-    fetchStats: withErrorHandling(fetchStats),
-    getDashboardChartData: withErrorHandling(getDashboardChartData),
-    getLocationAllParameters: withErrorHandling(getLocationAllParameters),
-    checkDataAvailability: withErrorHandling(checkDataAvailability)
 };
 
 export default api;

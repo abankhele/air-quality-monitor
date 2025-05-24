@@ -1,70 +1,112 @@
-# Getting Started with Create React App
+Here's a concise README.md for your air quality monitoring project:
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+```markdown
+# 🌬️ Air Quality Monitor
 
-## Available Scripts
+A real-time air quality monitoring dashboard visualizing data from 4,877+ US monitoring stations. Track historical trends, compare locations, and monitor current air quality conditions.
 
-In the project directory, you can run:
+![Python](https://img.shields.io/badge/Python-3.9+-blue)
+![React](https://img.shields.io/badge/React-18+-61dafb)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-13+-336791)
 
-### `npm start`
+## ✨ Features
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+- **4,877+ US Monitoring Stations** with real-time data
+- **Historical Trends** from 2016 to present (where available)
+- **Interactive Map** with location details
+- **Compare up to 5 locations** side-by-side
+- **Automated data updates** every 2 hours
+- **Multiple pollutants**: PM2.5, PM10, O₃, NO₂, SO₂, CO
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+## 🚀 Quick Start
 
-### `npm test`
+### Prerequisites
+- Python 3.9+, Node.js 16+, PostgreSQL, Redis
+- OpenAQ API Key (free at [openaq.org](https://openaq.org))
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+### Backend Setup
+```
+cd backend
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+pip install -r requirements.txt
 
-### `npm run build`
+# Configure .env file
+cp .env.example .env
+# Add: DATABASE_URL, REDIS_URL, OPENAQ_API_KEY
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+flask run --port 5001
+```
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+### Frontend Setup
+```
+cd frontend/air-quality-frontend
+npm install
+echo "REACT_APP_API_URL=http://localhost:5001/api" > .env
+npm start
+```
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+### Background Services
+```
+# Terminal 1: Redis
+redis-server
 
-### `npm run eject`
+# Terminal 2: Celery Worker
+celery -A celery_app worker --loglevel=info
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+# Terminal 3: Celery Beat (scheduler)
+celery -A celery_app beat --loglevel=info
+```
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+## 📊 Initial Data Load
+```
+# Load all US locations
+python manage.py update-locs
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+# Fetch latest measurements
+python manage.py fetch-data
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+# Check status
+python manage.py status
+```
 
-## Learn More
+## 🔗 Access Points
+- **Frontend**: http://localhost:3000
+- **API**: http://localhost:5001/api
+- **Task Monitor**: http://localhost:5555
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+## 🛠️ Tech Stack
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+**Backend**: Flask, SQLAlchemy, Celery, Redis, PostgreSQL  
+**Frontend**: React, Leaflet, Chart.js, Tailwind CSS  
+**Data Source**: OpenAQ API
 
-### Code Splitting
+## 📈 Key APIs
+```
+GET /api/locations              # All locations
+GET /api/locations/{id}         # Location details
+GET /api/measurements           # Historical data
+GET /api/parameters             # Available pollutants
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+## 🎯 Usage
 
-### Analyzing the Bundle Size
+1. **Dashboard** - Overview with interactive map
+2. **Location Details** - Click any location for trends
+3. **Trends** - Compare multiple locations
+4. **Predefined Comparisons** - Houston Metro, Cross-Country, etc.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+## 🔧 Management Commands
+```
+python manage.py fetch-data     # Update all location data
+python manage.py status         # Show data statistics
+python manage.py data-range     # Check data availability
+```
 
-### Making a Progressive Web App
+## 📊 Data Coverage
+- **23,000+ measurements** across all locations
+- **Complete US coverage** with EPA monitoring network
+- **Historical data** spanning multiple years
+- **Real-time updates** every 2 hours
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
 
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
